@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cassandra Site Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.4.1
+// @version      0.4.2
 // @description  Implements a button that allows a user to copy an IP
 //               address with one click, dark theme, and stylized server
 //               info.
@@ -67,7 +67,17 @@ const GARBLED_TO_SYMBOL_DICTIONARY = {
     "â˜": "☠",
     "Â©": "©",
     "â™¢": "♢",
-    "âˆž": "∞"
+    "âˆž": "∞",
+    "â›§": "⛧",
+    "Ã«": "ë",
+    "Ä™": "ę",
+    "âœ¾": "✾",
+    "âœ¹": "✹",
+    "Ã³": "ó",
+    "Å›": "ś",
+    "Ã¥": "å",
+    "ãƒ„": "ツ",
+    "Ã‰": "É"
 };
 
 // Start script
