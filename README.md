@@ -10,6 +10,7 @@ This script uses the [Tampermonkey](https://addons.mozilla.org/en-US/firefox/add
 * More readable Steam names
 * More readable server restart timers and server occupancy labels
 * Custom font styling
+* View additional server info
 
 ### Default Features
 * A single-click button to copy IP address without the trailing whitespace
@@ -18,12 +19,13 @@ This script uses the [Tampermonkey](https://addons.mozilla.org/en-US/firefox/add
 * Gray, pill-styled names to easily distinguish each player
 * Prevents confusion around names with spaces that may look like a separate player on the next line if it renders at the end of the line
 * More readable server occupancy and uptime labels
+* Because there is certain server information that is not displayed, a separate source is retrieved to show if a server was manually changed by a moderator/admin to a non-checkpoint mode (e.g. Outpost), mutators (shotguns or pistols only), or a night map.
 * Number of players in server will turn orange if there is only one slot available (9 / 10+2) or red if the server is full (10 / 10+2). If the configuration is set to moderator, then the script will account for that, too (orange: 11 / 10+2, red: 12 / 10+2).
 * The server uptime will remain light blue until it turns orange on hour 3. It will remain orange until it turns red on hour 4. Then it will add a black background at 4h45m to complement the red font. Time above 4h45m is considered overtime and will attempt to restart if active players end the round on a success.
 * Customize font size and family for server info or Steam names
 * Page refresh countdown bar + countdown timer
 * Differentiate a favorite server from the regular servers with a separate background color
-* HTML encoding is not set by default and uses windows-1252 which may be the cause of garbled text. Player names with garbled text can be replaced with the correct text/symbols by adding the garbled text and associated text/symbol to the dictionary.
+* (2020-11-08: Deprecated) HTML encoding is not set by default and uses windows-1252 which may be the cause of garbled text. Player names with garbled text can be replaced with the correct text/symbols by adding the garbled text and associated text/symbol to the dictionary.
 * Disable automatic page refresh (Can help you report a player before the auto-refresh removes them from the page)
 * Manually override a server IP with the new one in the event the owner has not updated the web interface (Deprecated)
 * Increase iFrame height to remove scrollbars
