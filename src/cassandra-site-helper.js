@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cassandra Site Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.4.2
+// @version      0.4.3
 // @description  Implements a button that allows a user to copy an IP
 //               address with one click, dark theme, and stylized server
 //               info.
@@ -26,6 +26,9 @@ const EXTEND_SERVER_SLOT_WARNING = false; // Default: false. Set to true if you 
 const FAVORITE_SERVER = true; // Default: true. Sets the server background to a muted red-brown color.
 const FAVORITE_SERVER_URL = /^http:\/\/cassandra.confluvium.info\/cassandra1.html$/; // Default: ""
 const INCREASE_IFRAME_HEIGHT = true; // Default: true. Useful if font-family/size enables scrollbar.
+const SHOW_CIRCLEUS_SERVER_INFO = false; // Default: false. Get additional Cass 2, 3, 4 info. Adds up to 3 second delay.
+
+const CIRCLEUS_API = "http://ins.circleus.tech/api/";
 
 // Font Configuration
 const FONT_FAMILY_SERVER_TEXT = "Verdana"; // Default: "Verdana"
@@ -58,6 +61,7 @@ const DOCUMENT_CSS = `
 `;
 ////////////////////////////////////////////////////////////////////////////////
 
+// 2020-11-08: Deprecated. Owner implemented UTF-8 encoding on web interface.
 // Dictionary to convert garbled text strings to UTF-8 symbols.
 const GARBLED_TO_SYMBOL_DICTIONARY = {
     "â„¢": "™",
@@ -77,7 +81,9 @@ const GARBLED_TO_SYMBOL_DICTIONARY = {
     "Å›": "ś",
     "Ã¥": "å",
     "ãƒ„": "ツ",
-    "Ã‰": "É"
+    "Ã‰": "É",
+    "â™¤": "♤",
+    "ç¦»å¸è½½å°±å·®äº¿æŠŠ": "离卸载就差亿把"
 };
 
 // Start script
@@ -115,9 +121,11 @@ const GARBLED_TO_SYMBOL_DICTIONARY = {
         // Get IP and SID (Replay ID).
         let ip = getIp(bodyEl, OVERRIDE_IP);
         let sid = getSid(bodyEl);
+        const numPlayers = getNumPlayers(bodyEl);
+        const serverNumber = getServerNumber(bodyEl);
 
         // Style player count, uptime, admin link, and Steam names.
-        styleServerPageElements(bodyEl, sid);
+        await styleServerPageElements(bodyEl, sid, ip, numPlayers, serverNumber);
 
         // Render countdown indicators
         renderAutoRefreshProgressBar(bodyEl);
@@ -135,6 +143,223 @@ const GARBLED_TO_SYMBOL_DICTIONARY = {
         return console.error(`Invalid Server: ${url}`);
     }
 })();
+
+/**
+ * Append loading indicator.
+ *
+ * @param  {HTML Node} bodyEl
+ * @param  {String}    id
+ * @param  {String}    position
+ */
+function appendLoadingIndicator(bodyEl, id, position) {
+    const loadingSpan = createLoadingIndicator(bodyEl, id, position);
+
+    bodyEl.appendChild(loadingSpan);
+}
+
+/**
+ * Create a loading indicator.
+ *
+ * @param  {HTML Node} bodyEl
+ * @param  {String}    id
+ * @param  {String}    position
+ * @return {HTML Node}
+ */
+function createLoadingIndicator(bodyEl, id, position) {
+    let loadingSpan = document.createElement("span");
+    loadingSpan.setAttribute("id", id);
+    loadingSpan.innerHTML = "Loading...";
+
+    const style = `padding-top: 8px;
+                   background-color: rgb(207, 205, 65);
+                   color: rgb(50, 50, 50);
+                   font-weight: bold;
+                   cursor: wait;
+                   padding-bottom: 8px;
+                   padding-left: 30px;
+                   padding-right: 30px;
+                   bottom: 10px;
+                   ${position}: 10px;
+                   border: none;
+                   white-space: nowrap;
+                   overflow: hidden
+                   text-align: center;
+                   text-decoration: none;
+                   display: inline-block;
+                   font-size: 16px;
+                   position: absolute;
+                   border-radius: 4px;
+                   border: 1px solid black;
+                  `;
+
+    loadingSpan.style.cssText = style;
+
+    return loadingSpan;
+}
+
+/**
+ * Get server number from title.
+ *
+ * @param  {HTML Node} bodyEl
+ * @return {Integer}
+ */
+function getServerNumber(bodyEl) {
+    const rawLine = getTextByLine(bodyEl.innerHTML, 1, "<br>");
+    const index = rawLine.indexOf("#");
+    const serverNumber = rawLine.slice(index + 1, index + 2);
+
+    return parseInt(serverNumber);
+}
+
+/**
+ * Get a random integer or double.
+ *
+ * @param  {Integer} precision
+ * @param  {Integer} limit
+ * @return {Number}
+ */
+function getRandomNumber(precision = 10, limit = 3) {
+    return Math.floor(Math.random() * (3 * precision - 1 * precision) + 1 * precision) / (1 * precision);
+}
+
+/**
+ * Get number of players on server.
+ *
+ * @param  {HTML Node} bodyEl
+ * @return {Integer}
+ */
+function getNumPlayers(bodyEl) {
+    // Get player count line from bodyEl's inner HTML.
+    const rawLine = "<br>" + getTextByLine(bodyEl.innerHTML, 5, "<br>");
+
+    // Sanitize raw HTML line to get number.
+    return getNumPlayersFromHtml(rawLine);
+}
+
+/**
+ * Get a double to define a delay for each API access based on the server.
+ * This is because simultaneous API calls increase the chance of failing.
+ *
+ * @param  {String} serverNumber
+ * @return {Number}
+ */
+function getServerDelayTime(serverNumber) {
+    const delayTable = {
+        2: 3.0,
+        3: 1.5,
+        4: 0.0
+    };
+
+    // If server number is found, get value. Otherwise, generate random number.
+    if (delayTable.hasOwnProperty(serverNumber) === true) {
+        return delayTable[serverNumber];
+    } else {
+        console.error("Server number not found. Random number generated.");
+
+        return getRandomNumber(10, 3);
+    }
+}
+
+/**
+ * Allows user to see more server information. E.g. map type: night,
+ * non-checkpoint game mode: Outpost, current mutator: "Pistols Only".
+ *
+ * @param  {HTML Node}  bodyEl
+ * @param  {String}     ip
+ * @param  {Integer}    numPlayers
+ * @param  {Integer}    serverNumber
+ */
+async function circleusServerInfoController(bodyEl, ip, numPlayers, serverNumber) {
+    if (SHOW_CIRCLEUS_SERVER_INFO === false) return;
+    if (numPlayers < 1) return {};
+    if (serverNumber === 0) return {}; // Cass 0 only uses ISMC Armory.
+    if (serverNumber === 1) return {}; // Cass 1 only use day maps.
+
+    // Add loading indicators.
+    appendLoadingIndicator(bodyEl, "loading-left", "left");
+    appendLoadingIndicator(bodyEl, "loading-right", "right");
+
+    const result = {};
+
+    try {
+        // Get API data.
+        const seconds = getServerDelayTime(serverNumber);
+        const apiData = await getCircleusServerInfo(serverNumber, ip, seconds);
+        const { Mutated_b, Mutators_s, Night_b, GameMode_s } = apiData.raw.rules;
+
+        const hasMutator = (Mutated_b === "true");
+        const isNight = (Night_b === "true");
+        const isCheckpoint = (GameMode_s === "Checkpoint");
+        const mutator = Mutators_s;
+        const gameMode = GameMode_s;
+
+        // Add object properties.
+        if (hasMutator === true) result.mutator = mutator;
+        if (isNight === true) result.night = "Night";
+        if (isCheckpoint === false) result.gameMode = gameMode;
+
+        const serverProps = { isNight, hasMutator, mutator, isCheckpoint, gameMode };
+
+        outputCircleusServerInfo(serverProps, seconds, serverNumber);
+        appendCircleusServerInfo(bodyEl, result);
+    } catch (error) {
+        result.error = "error";
+        console.error(error + ` - Cass #${serverNumber}`);
+    }
+
+    // Remove loading indicators.
+    document.getElementById("loading-left").remove();
+    document.getElementById("loading-right").remove();
+}
+
+/**
+ * Console output for debugging.
+ * Allows user to see more server information. E.g. map type: night,
+ * non-checkpoint game mode: Outpost, current mutator: "Pistols Only".
+ *
+ * @param  {Object}   serverProps
+ * @param  {Integer}  seconds
+ * @param  {Integer}  serverNumber
+ */
+function outputCircleusServerInfo(serverProps, seconds, serverNumber) {
+    const {isNight, hasMutator, mutator, isCheckpoint, gameMode } = serverProps;
+    const arr = [];
+
+    // Add to an array if condition is satisfied.
+    const displayNight = (isNight === true) && arr.push("Night");
+    const displayMutator = (hasMutator === true) && arr.push(mutator);
+    const displayGameMode = (isCheckpoint === false) && arr.push(gameMode);
+
+    const prefix = (seconds !== false) && `${seconds.toFixed(1)}s - `;
+    const root = `Cass #${serverNumber}: `;
+    const suffix = arr.join(", ");
+
+    if (arr.length > 0) console.log(`${prefix}${root}${suffix}`);
+}
+
+/**
+ * Retrieve Circleus API info.
+ *
+ * @param  {Integer}  serverNumber
+ * @param  {String}   ip
+ * @param  {Integer}  seconds
+ * @return {Object}
+ */
+async function getCircleusServerInfo(serverNumber, ip, seconds = false) {
+    if (seconds !== false) await pause(seconds);
+
+    try {
+        const apiUrl = CIRCLEUS_API + ip;
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+
+        console.log(`Cass #${serverNumber} - Circleus API requested.`);
+
+        return data;
+    } catch (error) {
+        console.error(`Failed to get Circleus's API info: ${error}`);
+    }
+}
 
 /**
  * Checks if URL is valid, but not enough error conditions
@@ -156,7 +381,6 @@ async function isUrlWorking(bodyEl, url) {
     let innerHtml = bodyEl.innerHTML;
     innerHtml = innerHtml.trim();
     const isUrlEmpty = (innerHtml === "<br><br>");
-
     if (isUrlEmpty) console.error(`Empty Server: ${url}`);
     */
 }
@@ -493,12 +717,9 @@ function styleUptime(bodyEl) {
  *
  * @param  {Node} bodyEl
  */
-function styleNumPlayers(bodyEl) {
+function styleNumPlayers(bodyEl, numPlayers) {
     // Get player count line from bodyEl's inner HTML.
     const rawLine = "<br>" + getTextByLine(bodyEl.innerHTML, 5, "<br>");
-
-    // Sanitize raw HTML line to get number.
-    let numPlayers = getNumPlayersFromHtml(rawLine);
 
     // Don't style if server is empty.
     if (numPlayers === 0) return;
@@ -743,7 +964,7 @@ function renderCopyIpButton(bodyEl, ip) {
                              padding-left: 30px;
                              padding-right: 30px;
                              bottom: ${btnOffset}px;
-                             left: ${btnOffset}px
+                             left: ${btnOffset}px;
                             `;
 
     const style = {};
@@ -972,10 +1193,22 @@ function styleDefaultServerPage(bodyEl, url) {
  *
  * @param {String} htmlString
  * @param {String} style
+ * @return {String}
  */
 function wrapStringWithSpan(htmlString, style) {
     return `<span style="${style}">${htmlString}</span>`;
+}
 
+/**
+ * Append a HTML link string.
+ *
+ * @param {String} title
+ * @param {String} style
+ * @param {String} content
+ * @return {String}
+ */
+function appendNewTabLink(title, style, content) {
+    return `<a title="${title}" style="${style}" target="_blank" href="${content}">→</a>`;
 }
 
 /**
@@ -986,7 +1219,11 @@ function wrapStringWithSpan(htmlString, style) {
  */
 function styleTitle(bodyEl, titleStyle) {
     const rawLine = getTextByLine(bodyEl.innerHTML, 1, "<br>").trim();
-    const newLine = wrapStringWithSpan(rawLine, titleStyle);
+    let newLine = wrapStringWithSpan(rawLine, titleStyle);
+
+    const style = `text-decoration: none; color: rgb(200, 200, 200);`;
+    const title = "Open in new tab";
+    newLine += " " + appendNewTabLink(title, style, bodyEl.baseURI);
 
     bodyEl.innerHTML = bodyEl.innerHTML.replace(rawLine, newLine);
 }
@@ -999,18 +1236,45 @@ function styleTitle(bodyEl, titleStyle) {
  * @param {Node}   bodyEl
  * @param {String} sid
  */
-function styleServerPageElements(bodyEl, sid) {
+async function styleServerPageElements(bodyEl, sid, ip, numPlayers, serverNumber) {
     const titleStyle = `font-size: ${FONT_SIZE_SERVER_TITLE};`;
     styleTitle(bodyEl, titleStyle);
 
-    styleNumPlayers(bodyEl);
+    styleNumPlayers(bodyEl, numPlayers);
     styleUptime(bodyEl);
     styleAdminLink();
     trimLineBreakElement(bodyEl);
     styleSteamNames();
 
+    await circleusServerInfoController(bodyEl, ip, numPlayers, serverNumber);
+
     // Rewrites bodyEl.innerHTML
     if (CENSOR) censorSid(bodyEl, sid);
+}
+
+function appendCircleusServerInfo(bodyEl, data) {
+    if (Object.keys(data).length === 0) return;
+
+    const rawLine = "<br>" + getTextByLine(bodyEl.innerHTML, 4, "<br>");
+
+    const newData = mapToCircleusServerViewModel(data);
+    const newLine = `${rawLine}${newData}`;
+
+    bodyEl.innerHTML = bodyEl.innerHTML.replace(rawLine, newLine);
+}
+
+function mapToCircleusServerViewModel(data) {
+    const arr = [];
+
+    if (data.night !== undefined) arr.push(data.night);
+    if (data.mutator !== undefined) arr.push(data.mutator);
+    if (data.gameMode !== undefined) arr.push(data.gameMode);
+    if (data.error !== undefined) arr.push(data.error);
+
+    const innerHTML = arr.join(', ');
+    const style = `color: rgb(255, 0, 0); font-weight: bold`;
+
+    return wrapStringWithSpan(innerHTML, style);
 }
 
 /**
@@ -1167,8 +1431,7 @@ function styleSteamNames() {
     const hyperlinks = document.querySelectorAll("a");
 
     hyperlinks.forEach((hyperlink, index) => {
-        // Exclude the admin link
-        if (hyperlink.innerHTML !== "link") {
+        if (hyperlink.host === "steamcommunity.com") {
             hyperlink.style.cssText = styleNames();
 
             if (CENSOR) {
@@ -1176,13 +1439,14 @@ function styleSteamNames() {
             }
 
             // Handle garbled (windows-1252?) characters. E.g. trademark symbol
-            hyperlink.innerText = handleGarbledSymbols(hyperlink.innerText);
+            // hyperlink.innerText = handleGarbledSymbols(hyperlink.innerText);
         }
     });
 }
 
 /**
  * Fix garbled symbols by dictionary lookup.
+ * 2020-11-08: Deprecated. Owner implemented UTF-8 encoding on web interface.
  *
  * @param  {String} steamName
  * @return {String}
@@ -1346,7 +1610,6 @@ function createInput(value, id, readonly=null, style) {
     /*
     const oldIp = "104.238.133.74:27122";
     const newIp = "144.202.2.75:27122";
-
     // If IP is old, set to new IP.
     if (value === oldIp) input.value = newIp;
     */
