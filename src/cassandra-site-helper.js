@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cassandra Site Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.4.3
+// @version      0.4.4
 // @description  Implements a button that allows a user to copy an IP
 //               address with one click, dark theme, and stylized server
 //               info.
@@ -494,7 +494,15 @@ function handleIntroPage(bodyEl) {
 
     //if (REFRESH_BUTTON) renderRefreshButton(bodyEl);
 
-    if (DISABLE_PAGE_REFRESH) renderNotification(bodyEl, "Auto-Refresh Disabled");
+    let msg = "Auto-Refresh";
+    let priority = "";
+    if (SHOW_CIRCLEUS_SERVER_INFO === false) {
+        msg += ", Circleus API";
+        priority = "high";
+    }
+    msg += " Disabled";
+
+    if (DISABLE_PAGE_REFRESH) renderNotification(bodyEl, msg, priority);
 }
 
 /**
@@ -503,7 +511,7 @@ function handleIntroPage(bodyEl) {
  * @param {HTML Node} bodyEl
  * @param {String}    msg
  */
-function renderNotification(bodyEl, msg) {
+function renderNotification(bodyEl, msg, priority) {
     let bgColor = "", additionalStyle = "", width = "20px";
 
     if (msg === "" || msg === null || msg === undefined) {
@@ -513,6 +521,7 @@ function renderNotification(bodyEl, msg) {
     let divEl = document.createElement("div");
 
     bgColor = (DARK_MODE) ? "rgb(207, 205, 65)" : "rgb(255, 251, 0)";
+    if (priority === "high") bgColor = "rgb(239, 51, 51)";
 
     if (!DARK_MODE) {
         additionalStyle = `border-top: 1px solid rgb(0, 0, 0);
