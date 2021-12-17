@@ -1,34 +1,43 @@
 // ==UserScript==
 // @name         Cassandra Site Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.4.4
+// @version      0.4.5
 // @description  Implements a button that allows a user to copy an IP
-//               address with one click, dark theme, and stylized server
-//               info.
+//               address with one click and a bunch of other stuff.
 // @author       github.com/heyjames
 // @include      /^http:\/\/cassandra.confluvium.info\/$/
-// @include      /^http:\/\/cassandra.confluvium.info\/general.html$/
+// @include      /^http:\/\/cassandra3.confluvium.info\/general.html$/
 // @include      /^http:\/\/cassandra0.confluvium.info\/cassandra0.html$/
-// @include      /^http:\/\/cassandra.confluvium.info\/cassandra1.html$/
-// @include      /^http:\/\/cassandra.confluvium.info\/cassandra2.html$/
-// @include      /^http:\/\/cassandra.confluvium.info\/cassandra3.html$/
-// @include      /^http:\/\/cassandra4.confluvium.info\/ss-status\/cassandra5.html$/
-// @include      /^http:\/\/cassandra5.confluvium.info\/ss-status\/cassandra5.html$/
-// @include      /^http:\/\/cassandra5.confluvium.info\/cassandra0.html$/
-// @include      /^http:\/\/cassandra.confluvium.info\/tt.php$/
+// @include      /^http:\/\/cassandra1.confluvium.info\/cassandra.html$/
+// @include      /^http:\/\/cassandra2.confluvium.info\/cassandra.html$/
+// @include      /^http:\/\/cassandra3.confluvium.info\/cassandra.html$/
+// @include      /^http:\/\/cassandra4.confluvium.info\/cassandra.html$/
+// @include      /^http:\/\/cassandra-m.confluvium.info\/cassandra.html$/
+// @include      /^http:\/\/proteus.confluvium.info\/cassandra.html$/
 // @grant        none
 // ==/UserScript==
 
 // Main Configuration ///////////////////////////////////////////////////////////////
 const DISABLE_PAGE_REFRESH = true; // Default: true
+const FAMILIAR_ALIAS = true; // Default: false. Only affects players found in PLAYERS variable.
 const DARK_MODE = true; // Default: true. Applies a dark theme.
-const EXTEND_SERVER_SLOT_WARNING = false; // Default: false. Set to true if you can join extra player slots.
+const EXTEND_SERVER_SLOT_WARNING = true; // Default: false. Used to highlight server occupancy background color.
 const FAVORITE_SERVER = true; // Default: true. Sets the server background to a muted red-brown color.
-const FAVORITE_SERVER_URL = /^http:\/\/cassandra.confluvium.info\/cassandra1.html$/; // Default: ""
+const FAVORITE_SERVER_URL = /^http:\/\/cassandra3.confluvium.info\/cassandra.html$/; // Default: ""
 const INCREASE_IFRAME_HEIGHT = true; // Default: true. Useful if font-family/size enables scrollbar.
-const SHOW_CIRCLEUS_SERVER_INFO = false; // Default: false. Get additional Cass 2, 3, 4 info. Adds up to 3 second delay.
 
-const CIRCLEUS_API = "http://ins.circleus.tech/api/";
+// Gamedig
+const SHOW_CIRCLEUS_SERVER_INFO = false; // Default: false
+const CIRCLEUS_SERVER_INFO_ALLOW_EMPTY = false;
+const CIRCLEUS_SERVER_INFO_ALLOW_LIST = [2, 3, 4];
+const SERVER_MAP = {
+    0: "http://cassandra0.confluvium.info/cassandra0.html",
+    1: "http://cassandra1.confluvium.info/cassandra.html",
+    2: "http://cassandra2.confluvium.info/cassandra.html",
+    3: "http://cassandra3.confluvium.info/cassandra.html",
+    4: "http://cassandra4.confluvium.info/cassandra.html"
+};
+const CIRCLEUS_API = "http://192.168.1.70:3000/api/server/";
 
 // Font Configuration
 const FONT_FAMILY_SERVER_TEXT = "Verdana"; // Default: "Verdana"
@@ -47,11 +56,11 @@ const FONT_SIZE_SERVER_TITLE = "16px"; // Default: "16px"
 const FONT_SIZE_SERVER_2014 = "12px"; // Default: "12px"
 
 // Replace outdated IP
-const OVERRIDE_IP = false; // Default: false
-const OVERRIDE_IP_URL = ""; // Default: ""
+const OVERRIDE_IP = false;
+const OVERRIDE_IP_URL = "";
 
 // Censor Configuration (For developer use)
-const CENSOR = false; // Default: false
+const CENSOR = false; // Default: false. Used by developer for screenshots.
 
 // Document Style Sheet
 const DOCUMENT_CSS = `
@@ -87,7 +96,7 @@ const GARBLED_TO_SYMBOL_DICTIONARY = {
 };
 
 // Start script
-(async function() {
+(async function () {
     'use strict';
 
     // Create the style elements in the head element with CSS
@@ -98,7 +107,7 @@ const GARBLED_TO_SYMBOL_DICTIONARY = {
     const url = bodyEl.baseURI;
 
     // Handle child iFrame dimensions
-    if (isSiteMainPage(url)) return handleMainPage(bodyEl);
+    if (isSiteMainPage(url)) return handleMainPage(bodyEl, url);
 
     // Handle site intro page like creating a legend
     // explaining classification styles.
@@ -119,10 +128,10 @@ const GARBLED_TO_SYMBOL_DICTIONARY = {
         isUrlWorking(bodyEl, url)
 
         // Get IP and SID (Replay ID).
+        const serverNumber = getServerNumber(url);
         let ip = getIp(bodyEl, OVERRIDE_IP);
         let sid = getSid(bodyEl);
         const numPlayers = getNumPlayers(bodyEl);
-        const serverNumber = getServerNumber(bodyEl);
 
         // Style player count, uptime, admin link, and Steam names.
         await styleServerPageElements(bodyEl, sid, ip, numPlayers, serverNumber);
@@ -137,9 +146,10 @@ const GARBLED_TO_SYMBOL_DICTIONARY = {
         renderCopyIpButton(bodyEl, ip);
 
         // Render a Copy SID button
-        renderSidInput(bodyEl, sid);
-        renderCopySidButton(bodyEl, sid);
+        //renderSidInput(bodyEl, sid);
+        //renderCopySidButton(bodyEl, sid);
     } catch (ex) {
+        console.error(ex);
         return console.error(`Invalid Server: ${url}`);
     }
 })();
@@ -200,15 +210,15 @@ function createLoadingIndicator(bodyEl, id, position) {
 /**
  * Get server number from title.
  *
- * @param  {HTML Node} bodyEl
+ * @param  {String} url
  * @return {Integer}
  */
-function getServerNumber(bodyEl) {
-    const rawLine = getTextByLine(bodyEl.innerHTML, 1, "<br>");
-    const index = rawLine.indexOf("#");
-    const serverNumber = rawLine.slice(index + 1, index + 2);
-
-    return parseInt(serverNumber);
+function getServerNumber(url) {
+    for (key in SERVER_MAP) {
+        if (url === SERVER_MAP[key]) {
+            return parseInt(key);
+        }
+    }
 }
 
 /**
@@ -230,7 +240,7 @@ function getRandomNumber(precision = 10, limit = 3) {
  */
 function getNumPlayers(bodyEl) {
     // Get player count line from bodyEl's inner HTML.
-    const rawLine = "<br>" + getTextByLine(bodyEl.innerHTML, 5, "<br>");
+    const rawLine = "<br>" + getTextByLine(bodyEl.innerHTML, 4, "<br>");
 
     // Sanitize raw HTML line to get number.
     return getNumPlayersFromHtml(rawLine);
@@ -245,9 +255,10 @@ function getNumPlayers(bodyEl) {
  */
 function getServerDelayTime(serverNumber) {
     const delayTable = {
-        2: 3.0,
-        3: 1.5,
-        4: 0.0
+        //0: 2,
+        2: 1,
+        3: 0,
+        //4: 0.0
     };
 
     // If server number is found, get value. Otherwise, generate random number.
@@ -271,20 +282,24 @@ function getServerDelayTime(serverNumber) {
  */
 async function circleusServerInfoController(bodyEl, ip, numPlayers, serverNumber) {
     if (SHOW_CIRCLEUS_SERVER_INFO === false) return;
-    if (numPlayers < 1) return {};
-    if (serverNumber === 0) return {}; // Cass 0 only uses ISMC Armory.
-    if (serverNumber === 1) return {}; // Cass 1 only use day maps.
+    if (!CIRCLEUS_SERVER_INFO_ALLOW_EMPTY && numPlayers < 1) return {};
+    if (!CIRCLEUS_SERVER_INFO_ALLOW_LIST.includes(serverNumber)) return {};
 
     // Add loading indicators.
     appendLoadingIndicator(bodyEl, "loading-left", "left");
-    appendLoadingIndicator(bodyEl, "loading-right", "right");
+    //appendLoadingIndicator(bodyEl, "loading-right", "right");
 
     const result = {};
 
     try {
         // Get API data.
-        const seconds = getServerDelayTime(serverNumber);
+        //const seconds = getServerDelayTime(serverNumber);
+        const seconds = false;
+        //setTimeout(() => {
+        //    throw new Error("Error").message;
+        //}, 7000);
         const apiData = await getCircleusServerInfo(serverNumber, ip, seconds);
+        //const { raw: { rules: { Mutated_b, Mutators_s, Night_b, GameMode_s } } } = apiData;
         const { Mutated_b, Mutators_s, Night_b, GameMode_s } = apiData.raw.rules;
 
         const hasMutator = (Mutated_b === "true");
@@ -303,13 +318,14 @@ async function circleusServerInfoController(bodyEl, ip, numPlayers, serverNumber
         outputCircleusServerInfo(serverProps, seconds, serverNumber);
         appendCircleusServerInfo(bodyEl, result);
     } catch (error) {
-        result.error = "error";
         console.error(error + ` - Cass #${serverNumber}`);
+        result.error = "error";
+        appendCircleusServerInfo(bodyEl, result);
     }
 
     // Remove loading indicators.
     document.getElementById("loading-left").remove();
-    document.getElementById("loading-right").remove();
+    //document.getElementById("loading-right").remove();
 }
 
 /**
@@ -322,7 +338,7 @@ async function circleusServerInfoController(bodyEl, ip, numPlayers, serverNumber
  * @param  {Integer}  serverNumber
  */
 function outputCircleusServerInfo(serverProps, seconds, serverNumber) {
-    const {isNight, hasMutator, mutator, isCheckpoint, gameMode } = serverProps;
+    const { isNight, hasMutator, mutator, isCheckpoint, gameMode } = serverProps;
     const arr = [];
 
     // Add to an array if condition is satisfied.
@@ -349,7 +365,11 @@ async function getCircleusServerInfo(serverNumber, ip, seconds = false) {
     if (seconds !== false) await pause(seconds);
 
     try {
-        const apiUrl = CIRCLEUS_API + ip;
+        //const response = await fetch(CIRCLEUS_API);
+        //const data = await response.json();
+        //return data[serverNumber];
+
+        const apiUrl = CIRCLEUS_API + serverNumber;
         const response = await fetch(apiUrl);
         const data = await response.json();
 
@@ -393,9 +413,16 @@ async function isUrlWorking(bodyEl, url) {
  * @param {String}  url
  */
 function disableAutoPageRefresh(toggle, url) {
-   if (isSiteMainPage(url) || isSiteIntroPage(url)) return;
+    if (isSiteIntroPage(url)) return;
+    if (DISABLE_PAGE_REFRESH === false) return;
 
-   if (DISABLE_PAGE_REFRESH) window.stop();
+    if (isSiteMainPage(url)) {
+        setTimeout(() => {
+            window.stop();
+        }, 10000);
+    } else {
+        window.stop();
+    }
 }
 
 /**
@@ -403,7 +430,8 @@ function disableAutoPageRefresh(toggle, url) {
  *
  * @param {HTML Node} bodyEl
  */
-function handleMainPage(bodyEl) {
+function handleMainPage(bodyEl, url) {
+    disableAutoPageRefresh(DISABLE_PAGE_REFRESH, url)
     styleMainPage(bodyEl);
 
     if (INCREASE_IFRAME_HEIGHT) handleMainPageIframes(bodyEl);
@@ -465,7 +493,7 @@ function isSiteMainPage(url) {
  * @return {Boolean}
  */
 function isSiteIntroPage(url) {
-    const legendIframe = /^http:\/\/cassandra.confluvium.info\/general.html$/;
+    const legendIframe = /^http:\/\/cassandra3.confluvium.info\/general.html$/;
     const isLegendIframe = legendIframe.test(url);
 
     return isLegendIframe;
@@ -664,8 +692,7 @@ function getNumPlayersFromHtml(html) {
  * @param  {Node}    bodyEl
  */
 function styleUptime(bodyEl) {
-    // Get the uptime line from bodyEl's inner HTML.
-    const rawLine = "<br>" + getTextByLine(bodyEl.innerHTML, 6, "<br>");
+    const rawLine = "<br>" + getTextByLine(bodyEl.innerHTML, 5, "<br>");
 
     // Get the uptime label. E.g. 2:41:08.
     const regex = /\d\:\d\d\:\d\d/g;
@@ -682,8 +709,8 @@ function styleUptime(bodyEl) {
     seconds = parseInt(seconds);
 
     // Get original HTML content flanking the uptime timer.
-    const leftSlice = rawLine.slice(0,19);
-    const rightSlice = rawLine.slice(26,rawLine.length);
+    const leftSlice = rawLine.slice(0, 19);
+    const rightSlice = rawLine.slice(26, rawLine.length);
 
     // Set uptime color conditions.
     const uptimeImmediate = ((hours > 4) || ((hours === 4) && (minutes >= 40))); // red text on black background
@@ -728,7 +755,7 @@ function styleUptime(bodyEl) {
  */
 function styleNumPlayers(bodyEl, numPlayers) {
     // Get player count line from bodyEl's inner HTML.
-    const rawLine = "<br>" + getTextByLine(bodyEl.innerHTML, 5, "<br>");
+    const rawLine = "<br>" + getTextByLine(bodyEl.innerHTML, 4, "<br>");
 
     // Don't style if server is empty.
     if (numPlayers === 0) return;
@@ -798,8 +825,8 @@ function getNumPlayersBgColor(bodyEl, numPlayers) {
     // Get the max player slots based on whether the player is
     // a moderator. Moderators can have priority slots.
     const maxPlayerSlots = (EXTEND_SERVER_SLOT_WARNING)
-                         ? modMaxPlayerSlots
-                         : nonModMaxPlayerSlots;
+        ? modMaxPlayerSlots
+        : nonModMaxPlayerSlots;
 
     // Player slot specification (Moderators). One remaining slot
     // will show an orange background
@@ -858,7 +885,7 @@ function removeNonBreakingSpace(str) {
  * @return {String}
  */
 function getIp(bodyEl, newIp) {
-    const rawLine = getTextByLine(bodyEl.innerHTML, 7, "<br>").trim().substring(9);
+    const rawLine = getTextByLine(bodyEl.innerHTML, 6, "<br>").trim().substring(9);
 
     const ip = (newIp) ? handleIpOverride(bodyEl, ip) : rawLine;
 
@@ -1065,12 +1092,12 @@ function renderAutoRefreshCountdown(bodyEl, url) {
         timerInputStyle += "color: rgb(245, 245, 245);";
 
         bgColor = (FAVORITE_SERVER && isFavoriteServer(url))
-                ? "rgb(61, 49, 57);"
-                : "rgb(50, 50, 50);";
+            ? "rgb(61, 49, 57);"
+            : "rgb(50, 50, 50);";
     } else {
         bgColor = (FAVORITE_SERVER && isFavoriteServer(url))
-                ? "rgb(255, 255, 255);"
-                : "rgb(204, 255, 255);";
+            ? "rgb(255, 255, 255);"
+            : "rgb(204, 255, 255);";
     }
 
     timerInputStyle += `width: 22px;
@@ -1160,7 +1187,7 @@ function styleFavoriteServerPage(bodyEl, url) {
                 `;
 
     if (DARK_MODE) {
-        style += `background-color: rgb(61, 49, 57);
+        style += `background-color: rgb(0, 40, 82);
                   color: rgb(200, 200, 200);
                   padding: 0px 2px 0px 2px;
                  `;
@@ -1204,8 +1231,8 @@ function styleDefaultServerPage(bodyEl, url) {
  * @param {String} style
  * @return {String}
  */
-function wrapStringWithSpan(htmlString, style) {
-    return `<span style="${style}">${htmlString}</span>`;
+function wrapStringWithSpan(htmlString, style, title) {
+    return `<span title="${title}" style="${style}">${htmlString}</span>`;
 }
 
 /**
@@ -1262,7 +1289,8 @@ async function styleServerPageElements(bodyEl, sid, ip, numPlayers, serverNumber
 }
 
 function appendCircleusServerInfo(bodyEl, data) {
-    if (Object.keys(data).length === 0) return;
+    //if (Object.keys(data).length === 0) return;
+    if (Object.keys(data).length === 0) data = { status: "success" };
 
     const rawLine = "<br>" + getTextByLine(bodyEl.innerHTML, 4, "<br>");
 
@@ -1273,17 +1301,32 @@ function appendCircleusServerInfo(bodyEl, data) {
 }
 
 function mapToCircleusServerViewModel(data) {
-    const arr = [];
+    const properties = Object.keys(data);
+    const success = (properties.length === 1 && properties[0] === "status");
+    const failure = (properties.length === 1 && properties[0] === "error");
 
-    if (data.night !== undefined) arr.push(data.night);
-    if (data.mutator !== undefined) arr.push(data.mutator);
-    if (data.gameMode !== undefined) arr.push(data.gameMode);
-    if (data.error !== undefined) arr.push(data.error);
+    if (success) {
+        const style = `color: rgb(0, 255, 0); font-size: 1.6em; line-height: 0.5; font-weight: bold;`;
 
-    const innerHTML = arr.join(', ');
-    const style = `color: rgb(255, 0, 0); font-weight: bold`;
+        return wrapStringWithSpan("&check;", style, "Gamedig API success");
+    } else if (failure) {
+        const style = `color: rgb(255, 0, 0); font-size: 1.6em; line-height: 0.5; font-weight: bold;`;
 
-    return wrapStringWithSpan(innerHTML, style);
+        return wrapStringWithSpan("&#10005;", style, "Gamedig API failed");
+    } else {
+        const arr = [];
+
+        if (data.night !== undefined) arr.push(data.night);
+        if (data.mutator !== undefined) arr.push(data.mutator);
+        if (data.gameMode !== undefined) arr.push(data.gameMode);
+        if (data.error !== undefined) arr.push(data.error);
+
+        const innerHTML = arr.join(', ');
+        const style = `color: rgb(255, 0, 0); font-weight: bold`;
+
+        return wrapStringWithSpan(innerHTML, style, "Gamedig API");
+    }
+
 }
 
 /**
@@ -1388,7 +1431,7 @@ function styleNames() {
                  font-size: ${FONT_SIZE_SERVER_PILL};
                  font-family: ${FONT_FAMILY_PILL};
                  text-decoration: none;
-                 padding: 1px 6px;
+                 padding: 0px 6px 1px 6px;
                  margin-top: 4px;
                  margin-bottom: 0px;
                  margin-right: 1px;
@@ -1485,14 +1528,14 @@ function handleGarbledSymbols(steamName) {
  * @return {String} Random string.
  */
 function createRandomString(charLen) {
-   let result = "";
-   const chars = `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-[]_ `;
+    let result = "";
+    const chars = `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-[]_ `;
 
-   for (let i=0; i<charLen; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-   }
+    for (let i = 0; i < charLen; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
 
-   return result;
+    return result;
 }
 
 /**
@@ -1530,13 +1573,13 @@ function createProgressBar(value, max, id) {
  */
 function createButton(labels, handleClick, style) {
     const { name, onName } = labels;
-    const { colors: {normalBgColor,
-                     normalTextColor,
-                     mouseUpBgColor,
-                     mouseUpTextColor
-                    },
-           additionalStyle
-          } = style;
+    const { colors: { normalBgColor,
+        normalTextColor,
+        mouseUpBgColor,
+        mouseUpTextColor
+    },
+        additionalStyle
+    } = style;
 
     // Format CSS based on user mouse action
     const getStyle = arg => {
@@ -1606,7 +1649,7 @@ function createButton(labels, handleClick, style) {
  * @param  {String} style    Set CSS of input.
  * @return {HtmlElement}
  */
-function createInput(value, id, readonly=null, style) {
+function createInput(value, id, readonly = null, style) {
     let input = document.createElement("input");
 
     input.setAttribute("id", id);
@@ -1676,9 +1719,9 @@ function handleCopy(id) {
  * @return {String}
  */
 function getTextByLine(target, lineIndex, separator) {
-  let lines = target.trim().split(separator).filter(str => str !== separator);
+    let lines = target.trim().split(separator).filter(str => str !== separator);
 
-  return lines[lineIndex - 1];
+    return lines[lineIndex - 1];
 }
 
 /**
