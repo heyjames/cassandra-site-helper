@@ -4,7 +4,7 @@ Google Chrome is currently unsupported due to its security implementation around
 This script uses the [Tampermonkey](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/) extension to add quality-of-life features to the Insurgency: Sandstorm tactical community website [Confluvium Gaming](http://cassandra.confluvium.net/). Because the design of the website can easily and unintentionally cause a user to copy trailing whitespace, in addition to unsupported whitespace trimming in the game client, the user requires a perfect IP address copied to the clipboard when connecting via IP. Although this script began as a simple button to copy the IP address, many other features were developed.
 
 ### Feature Summary
-* Copy IP button
+* Copy IP button (up to 75% easier!)
 * Copy SID button
 * Dark theme
 * More readable Steam names
