@@ -1,41 +1,45 @@
 // ==UserScript==
 // @name         Cassandra Site Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.4.5
-// @description  Implements a button that allows a user to copy an IP
-//               address with one click and a bunch of other stuff.
+// @version      0.5.3
+// @description  Implements a button that allows a user to copy an IP address with one click and a bunch of other stuff.
 // @author       github.com/heyjames
-// @include      /^http:\/\/cassandra.confluvium.info\/$/
-// @include      /^http:\/\/cassandra3.confluvium.info\/general.html$/
-// @include      /^http:\/\/cassandra0.confluvium.info\/cassandra0.html$/
-// @include      /^http:\/\/cassandra1.confluvium.info\/cassandra.html$/
-// @include      /^http:\/\/cassandra2.confluvium.info\/cassandra.html$/
-// @include      /^http:\/\/cassandra3.confluvium.info\/cassandra.html$/
-// @include      /^http:\/\/cassandra4.confluvium.info\/cassandra.html$/
-// @include      /^http:\/\/cassandra-m.confluvium.info\/cassandra.html$/
-// @include      /^http:\/\/proteus.confluvium.info\/cassandra.html$/
+// @match        http://cassandra.confluvium.net/
+// @match        http://cassandra3.confluvium.net/general.html
+// @match        http://cassandra0.confluvium.net/cassandra0.html
+// @match        http://cassandra1.confluvium.net/cassandra.html
+// @match        http://cassandra2.confluvium.net/cassandra.html
+// @match        http://cassandra3.confluvium.net/cassandra.html
+// @match        http://cassandra4.confluvium.net/cassandra.html
+// @match        http://cassandra-m.confluvium.net/cassandra.html
+// @match        http://cassandra5.confluvium.net/cassandra.html
+// @match        http://hub.confluvium.net/cassandra.html
+// @match        http://cassandra6.confluvium.net/cassandra.html
 // @grant        none
 // ==/UserScript==
 
 // Main Configuration ///////////////////////////////////////////////////////////////
-const DISABLE_PAGE_REFRESH = true; // Default: true
+const DISABLE_PAGE_REFRESH = false; // Default: true
 const FAMILIAR_ALIAS = true; // Default: false. Only affects players found in PLAYERS variable.
 const DARK_MODE = true; // Default: true. Applies a dark theme.
 const EXTEND_SERVER_SLOT_WARNING = true; // Default: false. Used to highlight server occupancy background color.
-const FAVORITE_SERVER = true; // Default: true. Sets the server background to a muted red-brown color.
-const FAVORITE_SERVER_URL = /^http:\/\/cassandra3.confluvium.info\/cassandra.html$/; // Default: ""
+const FAVORITE_SERVER = false; // Default: true. Sets the server background to a muted red-brown color.
+const FAVORITE_SERVER_URL = /^http:\/\/cassandra3.confluvium.net\/cassandra.html$/; // Default: ""
 const INCREASE_IFRAME_HEIGHT = true; // Default: true. Useful if font-family/size enables scrollbar.
+
+const HIGHLIGHTED_STEAM_IDS = ["76561190000000000"];
 
 // Gamedig
 const SHOW_CIRCLEUS_SERVER_INFO = false; // Default: false
 const CIRCLEUS_SERVER_INFO_ALLOW_EMPTY = false;
-const CIRCLEUS_SERVER_INFO_ALLOW_LIST = [2, 3, 4];
+const CIRCLEUS_SERVER_INFO_ALLOW_LIST = [5];
 const SERVER_MAP = {
-    0: "http://cassandra0.confluvium.info/cassandra0.html",
-    1: "http://cassandra1.confluvium.info/cassandra.html",
-    2: "http://cassandra2.confluvium.info/cassandra.html",
-    3: "http://cassandra3.confluvium.info/cassandra.html",
-    4: "http://cassandra4.confluvium.info/cassandra.html"
+    0: "http://cassandra0.confluvium.net/cassandra0.html",
+    1: "http://cassandra1.confluvium.net/cassandra.html",
+    2: "http://cassandra2.confluvium.net/cassandra.html",
+    3: "http://cassandra3.confluvium.net/cassandra.html",
+    4: "http://cassandra4.confluvium.net/cassandra.html",
+    5: "http://hub.confluvium.net/cassandra.html"
 };
 const CIRCLEUS_API = "http://192.168.1.70:3000/api/server/";
 
@@ -49,8 +53,12 @@ const FONT_SIZE_LEGEND_PILL = "14px"; // Default: "14px"
 // Sandstorm Server
 const FONT_FAMILY_PILL = "Verdana"; // Default: "Verdana"
 const FONT_SIZE_SERVER = "12px"; // Default: "12px"
-const FONT_SIZE_SERVER_PILL = "14px"; // Default: "14x"
+const FONT_SIZE_SERVER_PILL = "14px"; // Default: "14px"
 const FONT_SIZE_SERVER_TITLE = "16px"; // Default: "16px"
+
+const HIGHLIGHT_BG_COLOR = "rgb(0, 122, 211)"; // rgb(0, 122, 211), rgb(189, 0, 0)
+const HIGHLIGHT_TXT_COLOR = "rgb(231, 231, 231)"; // rgb(231, 231, 231)
+const HIGHLIGHT_FONT_SIZE = "14px"; // Default: "14px"
 
 // Insurgency 2014 Server
 const FONT_SIZE_SERVER_2014 = "12px"; // Default: "12px"
@@ -148,6 +156,8 @@ const GARBLED_TO_SYMBOL_DICTIONARY = {
         // Render a Copy SID button
         //renderSidInput(bodyEl, sid);
         //renderCopySidButton(bodyEl, sid);
+
+        isPlayerInServer(HIGHLIGHTED_STEAM_IDS, url);
     } catch (ex) {
         console.error(ex);
         return console.error(`Invalid Server: ${url}`);
@@ -455,6 +465,7 @@ function styleMainPage(bodyEl) {
  */
 function handleMainPageIframes(bodyEl) {
     let nodes = bodyEl.childNodes;
+    let borderColor = "";
 
     // Set inline frame dimensions
     let i = 0;
@@ -463,8 +474,16 @@ function handleMainPageIframes(bodyEl) {
             //nodes[i].height = (i === 0 || i === 2) ? 310 : 300;
             nodes[i].height = 301;
             //nodes[i].width = 420;
+
+            /*
+            borderColor = (isFavoriteServer(nodes[i].src))
+                        ? "rgb(207, 205, 65);"
+                        : "rgb(128, 128, 128)";
+            */
+            borderColor = "rgb(128, 128, 128)";
+
             nodes[i].style.cssText += `border-radius: 4px;
-                                       border: 2px solid rgb(128, 128, 128);
+                                       border: 2px solid ${borderColor};
                                        margin-bottom: 4px;
                                        margin-right: 4px;
                                       `;
@@ -480,7 +499,7 @@ function handleMainPageIframes(bodyEl) {
  * @return {Boolean}
  */
 function isSiteMainPage(url) {
-    const mainPageUrl = /^http:\/\/cassandra.confluvium.info\/$/;
+    const mainPageUrl = /^http:\/\/cassandra.confluvium.net\/$/;
     const isMainPageUrl = mainPageUrl.test(url);
 
     return isMainPageUrl;
@@ -493,7 +512,7 @@ function isSiteMainPage(url) {
  * @return {Boolean}
  */
 function isSiteIntroPage(url) {
-    const legendIframe = /^http:\/\/cassandra3.confluvium.info\/general.html$/;
+    const legendIframe = /^http:\/\/cassandra3.confluvium.net\/general.html$/;
     const isLegendIframe = legendIframe.test(url);
 
     return isLegendIframe;
@@ -506,7 +525,7 @@ function isSiteIntroPage(url) {
  * @return {Boolean}
  */
 function isSiteIns2014Page(url) {
-    const ins2014Url = /^http:\/\/cassandra.confluvium.info\/tt.php$/;
+    const ins2014Url = /^http:\/\/cassandra.confluvium.net\/tt.php$/;
     const isIns2014Url = ins2014Url.test(url);
 
     return isIns2014Url;
@@ -548,8 +567,8 @@ function renderNotification(bodyEl, msg, priority) {
 
     let divEl = document.createElement("div");
 
-    bgColor = (DARK_MODE) ? "rgb(207, 205, 65)" : "rgb(255, 251, 0)";
-    if (priority === "high") bgColor = "rgb(239, 51, 51)";
+    bgColor = (DARK_MODE) ? "rgb(135, 134, 40)" : "rgb(255, 251, 0)";
+    if (priority === "high") bgColor = "rgb(216, 104, 104)";
 
     if (!DARK_MODE) {
         additionalStyle = `border-top: 1px solid rgb(0, 0, 0);
@@ -985,12 +1004,13 @@ function renderCopyIpButton(bodyEl, ip) {
     let colorBg = (DARK_MODE) ? "rgb(49, 79, 99)" : "rgb(76, 175, 80)";
     let colorBgActive = (DARK_MODE) ? "rgb(168, 132, 22)" : "rgb(114, 0, 0)";
     let colorText = (DARK_MODE) ? "rgb(138, 188, 255)" : "rgb(255, 255, 255)";
+    let colorTextMouseUp = (DARK_MODE) ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)";
 
     const labels = { name: "Copy IP", onName: "Copied!" };
     const colors = {
         normalBgColor: colorBg,
         mouseUpBgColor: colorBgActive,
-        mouseUpTextColor: colorText,
+        mouseUpTextColor: colorTextMouseUp,
         normalTextColor: colorText,
     };
 
@@ -1001,6 +1021,8 @@ function renderCopyIpButton(bodyEl, ip) {
                              padding-right: 30px;
                              bottom: ${btnOffset}px;
                              left: ${btnOffset}px;
+                             opacity: 0.8;
+                             cursor: pointer;
                             `;
 
     const style = {};
@@ -1473,6 +1495,33 @@ function formatDate(d) {
     }
 
     return [year, month, day].join('-');
+}
+
+function isPlayerInServer(highlightedSteamIDs, url) {
+    const nodes = document.querySelector("html body").childNodes;
+    let highlightedSteamIDsFound = false;
+
+    let i = 0;
+    while (i < nodes.length) {
+        // If the hyperlink child has a Steam ID, continue.
+        if (hasSteamNum(nodes[i].href)) {
+            const steamId = nodes[i].href.trim().split("/")[4];
+
+            // if the array of Steam IDs contain the current Steam ID in HTML node
+            if (highlightedSteamIDs.includes(steamId)) {
+                highlightedSteamIDsFound = true;
+
+                // Override colors
+                nodes[i].style.cssText = nodes[i].style.cssText + `font-size: ${HIGHLIGHT_FONT_SIZE} !important;
+                                                                   border-radius: 12px !important;
+                                                                   background-color: ${HIGHLIGHT_BG_COLOR} !important;
+                                                                   color: ${HIGHLIGHT_TXT_COLOR} !important;
+                                                                  `;
+            }
+        }
+
+        i++;
+    }
 }
 
 /**
