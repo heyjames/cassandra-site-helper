@@ -1,7 +1,7 @@
 Google Chrome is currently unsupported due to its security implementation around iFrames. Neither the current copy text method or Clipboard API will work.
 
 ### Purpose
-This script uses the [Tampermonkey](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/) extension to add quality-of-life features to the Insurgency: Sandstorm tactical community website [Confluvium Gaming](http://cassandra.confluvium.info). Because the design of the website can easily and unintentionally cause a user to copy trailing whitespace, in addition to unsupported whitespace trimming in the game client, the user requires a perfect IP address copied to the clipboard when connecting via IP. Although this script began as a simple button to copy the IP address, many other features were developed.
+This script uses the [Tampermonkey](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/) extension to add quality-of-life features to the Insurgency: Sandstorm tactical community website [Confluvium Gaming](http://cassandra.confluvium.net/). Because the design of the website can easily and unintentionally cause a user to copy trailing whitespace, in addition to unsupported whitespace trimming in the game client, the user requires a perfect IP address copied to the clipboard when connecting via IP. Although this script began as a simple button to copy the IP address, many other features were developed.
 
 ### Feature Summary
 * Copy IP button
@@ -27,9 +27,10 @@ This script uses the [Tampermonkey](https://addons.mozilla.org/en-US/firefox/add
 * Differentiate a favorite server from the regular servers with a separate background color
 * (2020-11-08: Deprecated) HTML encoding is not set by default and uses windows-1252 which may be the cause of garbled text. Player names with garbled text can be replaced with the correct text/symbols by adding the garbled text and associated text/symbol to the dictionary.
 * Disable automatic page refresh (Can help you report a player before the auto-refresh removes them from the page)
-* Manually override a server IP with the new one in the event the owner has not updated the web interface (Deprecated)
+* (Deprecated) Manually override a server IP with the new one in the event the owner has not updated the web interface
 * Increase iFrame height to remove scrollbars
-* Censor mode to take screenshots (For developer use)
+* (For developer use) Censor mode to take screenshots
+* Customize a background color for highlighted players
 
 ### The Original Inconvenience Problem
 Without this script, a user can double-click and drag the IP address at the website and press CTRL+C to copy the IP address, but this also copies trailing whitespace. The alternative is to carefully single-click and drag the IP address and stop precisely before the trailing white space. Both scenarios require increased hand-eye coordination and takes about 5 and 8 user actions, respectively, compared to 2 with this script enabled.
