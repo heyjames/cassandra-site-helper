@@ -11,6 +11,7 @@ This script uses the [Tampermonkey](https://addons.mozilla.org/en-US/firefox/add
 * More readable server restart timers and server occupancy labels
 * Custom font styling
 * View additional server info
+* Customize a background color to highlight a group of players
 
 ### Default Features
 * A single-click button to copy IP address without the trailing whitespace
@@ -30,7 +31,7 @@ This script uses the [Tampermonkey](https://addons.mozilla.org/en-US/firefox/add
 * (Deprecated) Manually override a server IP with the new one in the event the owner has not updated the web interface
 * Increase iFrame height to remove scrollbars
 * (For developer use) Censor mode to take screenshots
-* Customize a background color for highlighted players
+* Customize a background color to highlight a group of players
 
 ### The Original Inconvenience Problem
 Without this script, a user can double-click and drag the IP address at the website and press CTRL+C to copy the IP address, but this also copies trailing whitespace. The alternative is to carefully single-click and drag the IP address and stop precisely before the trailing white space. Both scenarios require increased hand-eye coordination and takes about 5 and 8 user actions, respectively, compared to 2 with this script enabled.
